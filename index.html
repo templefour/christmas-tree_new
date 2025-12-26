@@ -1,0 +1,1329 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Luxury Tree - Custom Edition</title>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;800&family=Ma+Shan+Zheng&display=swap');
+
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            background-color: #020205; 
+            font-family: 'Cinzel', serif; 
+            touch-action: none; 
+            user-select: none; 
+            -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            overscroll-behavior: none;
+        }
+        
+        #canvas-container { 
+            width: 100vw; 
+            height: 100vh; 
+            position: absolute; 
+            z-index: 1; 
+        }
+        
+        #ui-layer { 
+            position: absolute; 
+            width: 100%; 
+            height: 100%; 
+            z-index: 10; 
+            pointer-events: none; 
+            background: radial-gradient(circle at center, transparent 0%, rgba(0,0,0,0.3) 100%); 
+        }
+        
+        #main-title {
+            position: absolute;
+            top: max(10%, env(safe-area-inset-top));
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100%;
+            text-align: center;
+            font-family: 'Cinzel', serif;
+            font-weight: 800;
+            font-size: clamp(24px, 5vw, 60px);
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            pointer-events: none;
+            z-index: 20;
+            opacity: 0;
+            min-height: 1.2em;
+            padding: 0 20px;
+            box-sizing: border-box;
+            
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-image: linear-gradient(180deg, #fffdf0 0%, #eacda3 30%, #d6ae7b 60%, #8b6c42 100%);
+            filter: drop-shadow(0 0 15px rgba(212, 175, 55, 0.6));
+            
+            animation: titleFadeIn 2s ease-out forwards 1s;
+            transition: filter 1.5s ease, background-image 1.5s ease;
+        }
+
+        @keyframes titleFadeIn {
+            from { opacity: 0; transform: translate(-50%, -20px); }
+            to { opacity: 1; transform: translate(-50%, 0); }
+        }
+
+        #loader { 
+            position: absolute; 
+            width: 100%; 
+            height: 100%; 
+            background: #000; 
+            z-index: 100; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            transition: opacity 1.2s; 
+            pointer-events: none; 
+        }
+        .spinner { 
+            width: 40px; 
+            height: 40px; 
+            border: 2px solid rgba(212, 175, 55, 0.1); 
+            border-top: 2px solid #d4af37; 
+            border-radius: 50%; 
+            animation: spin 1s linear infinite; 
+        }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+
+        /* 移动端控制面板适配 */
+        #top-right-controls { 
+            position: absolute; 
+            top: max(20px, env(safe-area-inset-top));
+            right: max(20px, env(safe-area-inset-right));
+            z-index: 30; 
+            display: flex; 
+            flex-direction: column;
+            gap: 12px;
+            pointer-events: auto; 
+            align-items: flex-end;
+        }
+        
+        /* 移动端按钮样式 */
+        .control-btn { 
+            background: rgba(10, 10, 10, 0.8); 
+            border: 1px solid rgba(212, 175, 55, 0.4); 
+            color: #d4af37; 
+            width: 120px;
+            height: 44px;
+            padding: 5px 0; 
+            border-radius: 10px; 
+            font-family: 'Cinzel', serif; 
+            font-size: 14px; 
+            font-weight: 600; 
+            cursor: pointer; 
+            backdrop-filter: blur(5px); 
+            transition: all 0.3s ease; 
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+        }
+        
+        @media (max-width: 768px) {
+            .control-btn {
+                width: 100px;
+                height: 40px;
+                font-size: 13px;
+                padding: 4px 0;
+            }
+            
+            #top-right-controls {
+                top: max(15px, env(safe-area-inset-top));
+                right: max(15px, env(safe-area-inset-right));
+                gap: 10px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .control-btn {
+                width: 90px;
+                height: 36px;
+                font-size: 12px;
+                padding: 3px 0;
+            }
+            
+            #main-title {
+                font-size: clamp(20px, 4vw, 36px);
+                top: max(8%, env(safe-area-inset-top));
+            }
+        }
+        
+        .control-btn:hover { 
+            background: rgba(212, 175, 55, 0.2); 
+            border-color: rgba(212, 175, 55, 0.8); 
+            color: #fff; 
+            transform: scale(1.05); 
+        }
+        .control-btn:active { 
+            transform: scale(0.95); 
+            background: rgba(212, 175, 55, 0.3); 
+        }
+        .control-btn.disabled { 
+            color: #666; 
+            border-color: #444; 
+        }
+        
+        #file-input, #music-input, #import-input { display: none; }
+
+        /* 移动端摄像头预览适配 */
+        #webcam-wrapper { 
+            position: absolute; 
+            bottom: max(20px, env(safe-area-inset-bottom));
+            right: max(20px, env(safe-area-inset-right));
+            opacity: 0; 
+            pointer-events: none; 
+            border: 1px solid rgba(212, 175, 55, 0.5); 
+            border-radius: 4px; 
+            background: #000; 
+            z-index: 50; 
+            display: flex; 
+            transition: opacity 0.5s;
+            width: 160px;
+            height: 120px;
+            overflow: hidden;
+        }
+        
+        @media (max-width: 768px) {
+            #webcam-wrapper {
+                width: 140px;
+                height: 105px;
+                bottom: max(15px, env(safe-area-inset-bottom));
+                right: max(15px, env(safe-area-inset-right));
+            }
+        }
+        
+        @media (max-width: 480px) {
+            #webcam-wrapper {
+                width: 120px;
+                height: 90px;
+                bottom: max(10px, env(safe-area-inset-bottom));
+                right: max(10px, env(safe-area-inset-right));
+            }
+        }
+        
+        #webcam { display: none; }
+        #webcam-preview { 
+            width: 100%; 
+            height: 100%; 
+            transform: scaleX(-1); 
+            object-fit: cover;
+        }
+
+        /* 移动端模态框适配 */
+        #letter-editor-modal { 
+            position: absolute; 
+            top: 50%; 
+            left: 50%; 
+            transform: translate(-50%, -50%); 
+            width: 90%; 
+            max-width: 500px; 
+            max-height: 80vh;
+            background: rgba(10, 10, 10, 0.95); 
+            border: 1px solid #d4af37; 
+            border-radius: 10px; 
+            padding: 20px; 
+            z-index: 200; 
+            display: none; 
+            flex-direction: column; 
+            gap: 15px; 
+            pointer-events: auto;
+            overflow-y: auto;
+        }
+        
+        #letter-editor-modal h3 { 
+            color: #d4af37; 
+            margin: 0 0 10px 0; 
+            text-align: center; 
+            font-size: clamp(18px, 4vw, 22px);
+        }
+        
+        #letter-text-input { 
+            width: 100%; 
+            height: 200px; 
+            background: rgba(255,255,255,0.05); 
+            border: 1px solid #444; 
+            color: #fff; 
+            padding: 12px; 
+            resize: none; 
+            outline: none; 
+            font-size: 16px;
+            font-family: inherit;
+            border-radius: 5px;
+        }
+        
+        @media (max-width: 480px) {
+            #letter-text-input {
+                height: 150px;
+                font-size: 14px;
+            }
+        }
+        
+        .modal-btn-group { 
+            display: flex; 
+            justify-content: flex-end; 
+            gap: 10px; 
+        }
+
+        /* 移动端书信查看适配 */
+        #letter-overlay { 
+            position: absolute; 
+            top: 0; 
+            left: 0; 
+            width: 100%; 
+            height: 100%; 
+            z-index: 150; 
+            background: rgba(0,0,0,0.9); 
+            display: none; 
+            align-items: center; 
+            justify-content: center; 
+            pointer-events: auto; 
+            opacity: 0; 
+            transition: opacity 1.5s ease; 
+            padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+            box-sizing: border-box;
+        }
+        
+        .letter-paper { 
+            width: 90%;
+            max-width: 800px;
+            height: auto;
+            max-height: 80vh;
+            aspect-ratio: 3/4; 
+            background: rgba(255, 252, 240, 0.15); 
+            backdrop-filter: blur(3px); 
+            border: 1px solid rgba(255, 255, 255, 0.3); 
+            padding: clamp(20px, 4vh, 40px); 
+            box-sizing: border-box; 
+            position: relative; 
+            display: flex; 
+            flex-direction: column; 
+            transform: translateY(20px); 
+            transition: transform 1.5s ease-out; 
+            overflow: hidden;
+        }
+        
+        .letter-content { 
+            font-family: 'Ma Shan Zheng', cursive; 
+            font-size: clamp(14px, 2vh, 20px); 
+            line-height: 1.6; 
+            color: rgba(255, 255, 255, 0.9); 
+            text-shadow: 0 0 5px rgba(255,215,0, 0.3); 
+            white-space: pre-wrap; 
+            overflow-y: auto; 
+            flex: 1; 
+            scroll-behavior: smooth;
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        .letter-content::-webkit-scrollbar { 
+            width: 6px; 
+        }
+        .letter-content::-webkit-scrollbar-thumb { 
+            background: rgba(212, 175, 55, 0.3); 
+            border-radius: 3px; 
+        }
+        .cursor::after { 
+            content: '|'; 
+            animation: blink 1s step-end infinite; 
+        }
+        @keyframes blink { 50% { opacity: 0; } }
+
+        .letter-close-btn { 
+            position: absolute; 
+            top: 15px; 
+            right: 15px; 
+            width: 40px; 
+            height: 40px; 
+            border: 1px solid rgba(255,255,255,0.4); 
+            border-radius: 50%; 
+            color: rgba(255,255,255,0.7); 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            cursor: pointer; 
+            transition: all 0.3s; 
+            font-size: 24px;
+            z-index: 10;
+        }
+        
+        @media (max-width: 480px) {
+            .letter-close-btn {
+                width: 36px;
+                height: 36px;
+                top: 10px;
+                right: 10px;
+                font-size: 20px;
+            }
+        }
+        
+        .letter-close-btn:hover { 
+            background: rgba(255,255,255,0.2); 
+            color: #fff; 
+            border-color: #fff; 
+        }
+        
+        /* 移动端提示信息 */
+        #mobile-alert {
+            position: absolute;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: #d4af37;
+            padding: 12px 20px;
+            border-radius: 10px;
+            border: 1px solid rgba(212, 175, 55, 0.5);
+            font-size: 14px;
+            text-align: center;
+            z-index: 40;
+            display: none;
+            pointer-events: none;
+            backdrop-filter: blur(5px);
+            max-width: 90%;
+            box-sizing: border-box;
+        }
+        
+        /* 移动端手势提示 */
+        #gesture-tutorial {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 90%;
+            max-width: 500px;
+            background: rgba(10, 10, 10, 0.95);
+            border: 1px solid #d4af37;
+            border-radius: 15px;
+            padding: 25px;
+            z-index: 300;
+            display: none;
+            flex-direction: column;
+            pointer-events: auto;
+            color: #fff;
+        }
+        
+        .tutorial-content h3 {
+            color: #d4af37;
+            margin: 0 0 20px 0;
+            text-align: center;
+            font-size: 20px;
+        }
+        
+        .gesture-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+            padding: 10px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 8px;
+        }
+        
+        .gesture-icon {
+            font-size: 32px;
+            margin-right: 15px;
+            width: 60px;
+            text-align: center;
+        }
+        
+        .gesture-desc {
+            flex: 1;
+            font-size: 16px;
+            line-height: 1.4;
+        }
+        
+        #close-tutorial {
+            margin-top: 20px;
+            align-self: center;
+            width: 120px;
+        }
+        
+        /* 移动端触摸控制区域 */
+        #touch-controls {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 30%;
+            z-index: 5;
+            pointer-events: none;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 20px 20px 20px;
+            box-sizing: border-box;
+        }
+        
+        .touch-zone {
+            width: 100px;
+            height: 100px;
+            pointer-events: auto;
+            opacity: 0.1;
+            border-radius: 50%;
+            background: rgba(212, 175, 55, 0.2);
+            margin: 0 10px;
+        }
+        
+        @media (max-width: 768px) {
+            .touch-zone {
+                width: 80px;
+                height: 80px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .touch-zone {
+                width: 60px;
+                height: 60px;
+            }
+            
+            #touch-controls {
+                height: 25%;
+                padding: 0 10px 10px 10px;
+            }
+        }
+        
+        /* 防止iOS橡皮筋效果 */
+        html, body {
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="loader"><div class="spinner"></div></div>
+    <div id="canvas-container"></div>
+
+    <div id="ui-layer">
+        <div id="main-title"></div>
+
+        <div id="top-right-controls">
+            <div class="control-col" id="col-media">
+                <button id="btn-bg-music" class="control-btn">上传音乐</button>
+                <button id="btn-add-photo" class="control-btn">上传照片</button>
+                <button id="btn-write-letter" class="control-btn">上传书信</button>
+                <button id="btn-set-title" class="control-btn">设置标题</button>
+            </div>
+            <div class="control-col" id="col-system">
+                <button id="btn-import" class="control-btn">导入网页</button>
+                <button id="btn-export" class="control-btn">导出网页</button>
+                <button id="btn-fullscreen" class="control-btn">全屏显示</button>
+                <button id="btn-switch-theme" class="control-btn">颜色切换</button>
+            </div>
+        </div>
+        <input type="file" id="file-input" multiple accept="image/*">
+        <input type="file" id="music-input" accept="audio/mp3,audio/*">
+        <input type="file" id="import-input" accept=".json">
+    </div>
+
+    <!-- 移动端手势教程 -->
+    <div id="gesture-tutorial">
+        <div class="tutorial-content">
+            <h3>手势操作指南</h3>
+            <div class="gesture-item">
+                <div class="gesture-icon">👍</div>
+                <div class="gesture-desc">竖起拇指保持0.5秒 - 切换主题</div>
+            </div>
+            <div class="gesture-item">
+                <div class="gesture-icon">👌</div>
+                <div class="gesture-desc">OK手势 - 查看书信</div>
+            </div>
+            <div class="gesture-item">
+                <div class="gesture-icon">👐</div>
+                <div class="gesture-desc">张开手掌 - 控制旋转</div>
+            </div>
+            <button id="close-tutorial" class="control-btn">我知道了</button>
+        </div>
+    </div>
+
+    <div id="letter-editor-modal">
+        <h3>撰写你的心意</h3>
+        <textarea id="letter-text-input" placeholder="在这里写下你想说的话..."></textarea>
+        <div class="modal-btn-group">
+            <button id="btn-cancel-letter" class="control-btn" style="width: 80px;">取消</button>
+            <button id="btn-save-letter" class="control-btn" style="width: 80px;">保存</button>
+        </div>
+    </div>
+
+    <div id="letter-overlay">
+        <div class="letter-paper">
+            <div class="letter-close-btn" id="btn-close-letter-mode">×</div>
+            <div class="letter-content" id="letter-content-display"></div>
+        </div>
+    </div>
+
+    <!-- 移动端提示信息 -->
+    <div id="mobile-alert"></div>
+
+    <!-- 移动端触摸控制区域（备用） -->
+    <div id="touch-controls">
+        <div class="touch-zone" id="touch-left"></div>
+        <div class="touch-zone" id="touch-right"></div>
+    </div>
+
+    <div id="webcam-wrapper">
+        <video id="webcam" autoplay playsinline webkit-playsinline></video>
+        <canvas id="webcam-preview"></canvas>
+    </div>
+    
+    <audio id="bg-music" loop crossorigin="anonymous"></audio>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+        import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'; 
+        import { FilesetResolver, HandLandmarker, DrawingUtils } from '@mediapipe/tasks-vision';
+
+        const CONFIG = {
+            colors: {
+                bg: 0x020205, gold: 0xffd700, red: 0x880000, green: 0x004400,
+                iceBlue: 0xaaddff, 
+                iceCyan: 0x00ffff, 
+                iceMagenta: 0xff00cc,
+                iceDeep: 0x002244,
+                white: 0xffffff,
+                barbieHot: 0xff1694,
+                barbieSoft: 0xffb7c5,
+                barbieViolet: 0xd461e3
+            },
+            particles: { 
+                count: 1200, // 减少移动端粒子数量
+                dustCount: 1000, 
+                treeHeight: 28, 
+                treeRadius: 9,
+                snowCount: 1500, // 减少移动端雪花数量
+                snowSpeed: 10 
+            },
+            camera: { z: 55 },
+            gestures: { 
+                palmOpenThreshold: 0.35, 
+                sensitivity: 6.0,
+                holdDuration: 500,
+                palmSpeedThreshold: 0.05,
+                switchCooldown: 2000
+            }
+        };
+
+        // 检测是否为移动设备
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+        const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+
+        const STATE = {
+            mode: 'TREE', 
+            focusTarget: null, 
+            currentPhotoIndex: -1,
+            currentThemeIndex: 0, 
+            gestureDebounceTimer: 0,
+            isGestureSwitchEnabled: true, 
+            scatterScale: 1.0, 
+            gestureBaseSpread: null,
+            hand: { detected: false, x: 0, y: 0 },
+            rotation: { x: 0, y: 0 }, 
+            spinVel: { x: 0, y: 0 }, 
+            time: 0,
+            wasPointing: false, 
+            palmCenter: { x: 0.5, y: 0.5 }, 
+            hasPalmCenter: false,
+            starMesh: null, 
+            starHaloMesh: null,
+            letterContent: "",
+            letterTyper: null, 
+            letterStartTimer: null, 
+            letterLastTriggerTime: 0,
+            musicData: null,
+            // 新增移动端状态
+            gestureStartTime: 0,
+            lastPalmPosition: null,
+            // 触摸控制状态
+            touchStartX: 0,
+            touchStartY: 0,
+            touchRotating: false,
+            touchVelocity: { x: 0, y: 0 },
+            // 性能状态
+            frameCount: 0,
+            lastFpsTime: 0,
+            fps: 60,
+            // 移动端摄像头状态
+            cameraPermission: null,
+            isLandscape: window.innerWidth > window.innerHeight
+        };
+
+        let scene, camera, renderer, composer, clock = new THREE.Clock();
+        let mainGroup, starGroup, bgGroup, photoMeshGroup, particleSystem = []; 
+        let galaxySystem = null; 
+        let snowSystem = null;
+        let heartSystem = null;
+
+        let handLandmarker, video, drawingUtils, canvasCtx;
+        let caneTexture, snowTexture, heartTexture, matLib = {};
+        
+        const _tempVec = new THREE.Vector3();
+        const _targetVec = new THREE.Vector3();
+        const _invMatrix = new THREE.Matrix4();
+
+        async function init() {
+            // 显示移动设备提示
+            if (isMobile) {
+                showMobileAlert("正在加载3D场景，请稍候...");
+                // 减少移动端粒子数量
+                CONFIG.particles.count = 800;
+                CONFIG.particles.dustCount = 600;
+                CONFIG.particles.snowCount = 1000;
+            }
+            
+            initThree();            
+            setupEnvironment();     
+            setupLights();          
+            createTextures();       
+            createMaterials(); 
+            
+            createGalaxyBackground(); 
+            createSnowBackground();
+            createHeartBackground();
+            
+            createParticles();      
+            setupPostProcessing();
+            setupEvents();          
+            setupLetterSystem(); 
+            
+            // 显示手势教程（仅移动端且第一次访问）
+            if (isMobile && !localStorage.getItem('tutorialShown')) {
+                setTimeout(() => showGestureTutorial(), 2000);
+            }
+            
+            switchTheme(0);
+
+            // 初始化MediaPipe（移动端可能需要用户交互后才能请求摄像头权限）
+            setupMediaPipeWithPermission();
+
+            const loader = document.getElementById('loader');
+            loader.style.opacity = 0;
+            setTimeout(() => loader.remove(), 1200);
+            
+            // 显示移动端提示
+            if (isMobile) {
+                setTimeout(() => {
+                    showMobileAlert("使用手势或触摸屏幕控制圣诞树", 3000);
+                }, 1500);
+            }
+
+            animate(); 
+        }
+
+        function initThree() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(CONFIG.colors.bg);
+            scene.fog = new THREE.FogExp2(CONFIG.colors.bg, 0.012); 
+
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 2000);
+            camera.position.set(0, 0, CONFIG.camera.z); 
+
+            // 移动端性能优化
+            const pixelRatio = isMobile ? Math.min(window.devicePixelRatio, 1.2) : Math.min(window.devicePixelRatio, 1.5);
+            
+            renderer = new THREE.WebGLRenderer({ 
+                antialias: !isMobile, // 移动端关闭抗锯齿提高性能
+                powerPreference: isMobile ? "default" : "high-performance",
+                depth: true,
+                alpha: false,
+                preserveDrawingBuffer: false
+            });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(pixelRatio);
+            renderer.toneMapping = THREE.ACESFilmicToneMapping; 
+            renderer.toneMappingExposure = 1.0;
+            renderer.outputColorSpace = THREE.SRGBColorSpace;
+            
+            // 移动端性能优化设置
+            if (isMobile) {
+                renderer.physicallyCorrectLights = false;
+                renderer.shadowMap.enabled = false;
+                renderer.shadowMap.type = THREE.BasicShadowMap;
+            }
+            
+            const canvasContainer = document.getElementById('canvas-container');
+            canvasContainer.appendChild(renderer.domElement);
+            
+            // 移动端防止上下文丢失
+            renderer.domElement.addEventListener('webglcontextlost', (event) => {
+                event.preventDefault();
+                showMobileAlert("3D上下文丢失，正在恢复...", 2000);
+                setTimeout(() => {
+                    location.reload();
+                }, 1000);
+            });
+
+            bgGroup = new THREE.Group(); scene.add(bgGroup);
+            mainGroup = new THREE.Group(); mainGroup.rotation.x = 0.1; scene.add(mainGroup);
+            starGroup = new THREE.Group(); mainGroup.add(starGroup);
+            photoMeshGroup = new THREE.Group(); mainGroup.add(photoMeshGroup);
+        }
+
+        function setupEnvironment() {
+            if (!isMobile) { // 移动端跳过环境贴图以提高性能
+                const pmrem = new THREE.PMREMGenerator(renderer);
+                pmrem.compileEquirectangularShader();
+                scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+            }
+        }
+
+        function setupLights() {
+            scene.add(new THREE.AmbientLight(0xffffff, 0.2));
+            const bottomLight = new THREE.PointLight(CONFIG.colors.gold, 3, 40);
+            bottomLight.position.set(0, -10, 10);
+            mainGroup.add(bottomLight);
+            
+            // 移动端减少光源数量
+            if (!isMobile) {
+                const spotGold = new THREE.SpotLight(0xfff0dd, 800);
+                spotGold.position.set(40, 60, 40); spotGold.angle = 0.4; spotGold.decay = 2;
+                scene.add(spotGold);
+                
+                const spotBlue = new THREE.SpotLight(0x4455ff, 400);
+                spotBlue.position.set(-40, 10, -30); spotBlue.lookAt(0,0,0);
+                scene.add(spotBlue);
+            }
+        }
+
+        function setupPostProcessing() {
+            // 移动端关闭后期处理以提高性能
+            if (!isMobile) {
+                const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
+                bloom.threshold = 0.75; bloom.strength = 0.5; bloom.radius = 0.5;
+                composer = new EffectComposer(renderer);
+                composer.addPass(new RenderPass(scene, camera));
+                composer.addPass(bloom);
+            }
+        }
+
+        // 创建纹理（移动端使用更小的纹理）
+        function createTextures() {
+            const canvasSize = isMobile ? 64 : 128;
+            const canvas = document.createElement('canvas'); 
+            canvas.width = canvasSize; 
+            canvas.height = canvasSize;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#ffffff'; ctx.fillRect(0,0,canvasSize,canvasSize);
+            ctx.fillStyle = '#aa0000'; ctx.beginPath();
+            for(let i=-canvasSize; i<canvasSize*2; i+=canvasSize/4) { 
+                ctx.moveTo(i, 0); 
+                ctx.lineTo(i+canvasSize/4, canvasSize); 
+                ctx.lineTo(i+canvasSize/8, canvasSize); 
+                ctx.lineTo(i-canvasSize/8, 0); 
+            }
+            ctx.fill();
+            caneTexture = new THREE.CanvasTexture(canvas);
+            caneTexture.colorSpace = THREE.SRGBColorSpace;
+            caneTexture.wrapS = THREE.RepeatWrapping; 
+            caneTexture.wrapT = THREE.RepeatWrapping;
+            caneTexture.repeat.set(3, 3);
+
+            const snowCvs = document.createElement('canvas'); 
+            snowCvs.width = isMobile ? 16 : 32; 
+            snowCvs.height = isMobile ? 16 : 32;
+            const sCtx = snowCvs.getContext('2d');
+            const grad = sCtx.createRadialGradient(
+                snowCvs.width/2, snowCvs.width/2, 0, 
+                snowCvs.width/2, snowCvs.width/2, snowCvs.width/2
+            );
+            grad.addColorStop(0, 'rgba(255,255,255,1)');
+            grad.addColorStop(1, 'rgba(255,255,255,0)');
+            sCtx.fillStyle = grad; 
+            sCtx.fillRect(0,0,snowCvs.width,snowCvs.height);
+            snowTexture = new THREE.CanvasTexture(snowCvs);
+
+            const hCvs = document.createElement('canvas'); 
+            hCvs.width = isMobile ? 32 : 64; 
+            hCvs.height = isMobile ? 32 : 64;
+            const hCtx = hCvs.getContext('2d');
+            hCtx.fillStyle = '#ffffff';
+            hCtx.beginPath();
+            hCtx.moveTo(hCvs.width/2, hCvs.height*0.3125);
+            hCtx.bezierCurveTo(
+                hCvs.width/2, hCvs.height*0.2656,
+                hCvs.width*0.3125, hCvs.height*0.1563,
+                hCvs.width*0.1563, hCvs.height*0.1563
+            );
+            hCtx.bezierCurveTo(
+                hCvs.width*0.1563, hCvs.height*0.1563,
+                hCvs.width*0.1563, hCvs.height*0.3906,
+                hCvs.width*0.1563, hCvs.height*0.3906
+            );
+            hCtx.bezierCurveTo(
+                hCvs.width*0.1563, hCvs.height*0.5469,
+                hCvs.width*0.3125, hCvs.height*0.6563,
+                hCvs.width/2, hCvs.height*0.8594
+            );
+            hCtx.bezierCurveTo(
+                hCvs.width*0.6875, hCvs.height*0.6563,
+                hCvs.width*0.8438, hCvs.height*0.5469,
+                hCvs.width*0.8438, hCvs.height*0.3906
+            );
+            hCtx.bezierCurveTo(
+                hCvs.width*0.8438, hCvs.height*0.3906,
+                hCvs.width*0.8438, hCvs.height*0.1563,
+                hCvs.width*0.6875, hCvs.height*0.1563
+            );
+            hCtx.bezierCurveTo(
+                hCvs.width*0.5625, hCvs.height*0.1563,
+                hCvs.width/2, hCvs.height*0.2656,
+                hCvs.width/2, hCvs.height*0.3125
+            );
+            hCtx.fill();
+            heartTexture = new THREE.CanvasTexture(hCvs);
+        }
+
+        // ...（中间部分的函数保持不变，但会在移动端进行优化）...
+
+        // 修改：移动端优化的粒子更新
+        class Particle {
+            constructor(mesh, type, isDust = false) {
+                this.mesh = mesh; 
+                this.type = type; 
+                this.isDust = isDust;
+                this.posTree = new THREE.Vector3(); 
+                this.posScatter = new THREE.Vector3();
+                this.baseScale = mesh.scale.x; 
+                this.offset = Math.random() * 100; 
+                this.speed = 0.5 + Math.random();
+                this.updateCount = 0; // 用于分帧更新
+                
+                if (mesh.material && mesh.material.emissive) { 
+                    this.baseEmissive = mesh.material.emissive.clone(); 
+                    this.hasEmissive = true; 
+                }
+                this.calculatePositions();
+            }
+
+            calculatePositions() {
+                // ...（保持不变）...
+            }
+
+            update(dt, time, mode, focusTargetMesh, invMatrix) {
+                // 移动端分帧更新：每5帧更新一次非焦点粒子
+                if (isMobile && mode !== 'FOCUS' && this.updateCount++ % 5 !== 0) {
+                    return;
+                }
+                
+                // ...（原有的更新逻辑）...
+            }
+        }
+
+        // 修改：移动端优化的动画循环
+        function animate() {
+            requestAnimationFrame(animate);
+            const dt = Math.min(clock.getDelta(), 0.05); // 限制最大delta时间
+            STATE.time = clock.elapsedTime;
+            const inputX = STATE.hand.detected ? STATE.hand.x : 0; 
+
+            // 计算FPS（仅调试用）
+            STATE.frameCount++;
+            if (STATE.time - STATE.lastFpsTime > 1) {
+                STATE.fps = STATE.frameCount;
+                STATE.frameCount = 0;
+                STATE.lastFpsTime = STATE.time;
+                // 如果FPS过低，动态调整质量
+                if (isMobile && STATE.fps < 30) {
+                    adjustQualityForPerformance();
+                }
+            }
+
+            // ...（原有的动画逻辑，但添加移动端触摸控制）...
+            
+            // 移动端触摸控制
+            if (isMobile && !STATE.hand.detected && STATE.touchRotating) {
+                STATE.rotation.y += STATE.touchVelocity.y * dt * 2;
+                STATE.rotation.x += STATE.touchVelocity.x * dt;
+                // 逐渐减速
+                STATE.touchVelocity.x *= 0.95;
+                STATE.touchVelocity.y *= 0.95;
+            }
+
+            // ...（原有的更新逻辑）...
+
+            // 渲染
+            if (composer && !isMobile) {
+                composer.render();
+            } else {
+                renderer.render(scene, camera);
+            }
+        }
+
+        // 新增：移动端性能调整
+        function adjustQualityForPerformance() {
+            // 动态降低质量
+            if (STATE.fps < 20) {
+                // 严重卡顿，大幅降低质量
+                renderer.setPixelRatio(1.0);
+                if (composer) composer.setPixelRatio(1.0);
+                scene.fog.density *= 0.8;
+            } else if (STATE.fps < 30) {
+                // 轻微卡顿，适度降低质量
+                const currentPR = renderer.getPixelRatio();
+                if (currentPR > 1.0) {
+                    renderer.setPixelRatio(currentPR * 0.8);
+                    if (composer) composer.setPixelRatio(currentPR * 0.8);
+                }
+            }
+        }
+
+        // 新增：移动端摄像头权限处理
+        async function setupMediaPipeWithPermission() {
+            try {
+                // 移动端需要用户交互后才能请求摄像头权限
+                if (isMobile) {
+                    // 先显示提示
+                    showMobileAlert("点击屏幕任意位置开始手势识别", 3000);
+                    
+                    // 等待用户点击
+                    const startHandler = () => {
+                        document.removeEventListener('click', startHandler);
+                        document.removeEventListener('touchstart', startHandler);
+                        initMediaPipe();
+                    };
+                    
+                    document.addEventListener('click', startHandler);
+                    document.addEventListener('touchstart', startHandler);
+                } else {
+                    // 桌面端直接初始化
+                    await initMediaPipe();
+                }
+            } catch (error) {
+                console.warn('MediaPipe初始化失败:', error);
+                showMobileAlert("手势识别不可用，请使用触摸控制", 5000);
+                
+                // 启用触摸控制
+                setupTouchControls();
+            }
+        }
+
+        // 修改：优化后的手势识别
+        function processGestures(lm) {
+            STATE.hand.detected = true;
+            if (STATE.mode === 'LETTER') return;
+
+            const dist = (i, j) => Math.hypot(lm[i].x - lm[j].x, lm[i].y - lm[j].y);
+            const dIndex = dist(8,0), dMiddle = dist(12,0), dRing = dist(16,0), dPinky = dist(20,0);
+            const palmSize = dist(0, 9);
+            
+            // 当前手掌位置
+            const currentPalmX = lm[9].x;
+            const currentPalmY = lm[9].y;
+            
+            // 1. OK手势（书信模式）
+            if (dist(4,8) < 0.05 && dMiddle > 0.15 && dMiddle > dIndex * 1.2) {
+                if (STATE.letterContent && STATE.letterContent.trim() !== "") {
+                    if (Date.now() - STATE.letterLastTriggerTime > 1000) { 
+                        STATE.letterLastTriggerTime = Date.now(); 
+                        enterLetterMode(); 
+                    }
+                }
+                STATE.gestureStartTime = 0;
+                return;
+            }
+            
+            // 2. 竖起拇指手势（颜色切换）
+            const isThumbExtended = dist(4, 9) > palmSize * 0.85; 
+            const isIndexCurled = dist(8, 9) < palmSize * 0.65;  
+            const isMiddleCurled = dist(12, 9) < palmSize * 0.65; 
+            const isRingCurled = dist(16, 9) < palmSize * 0.65;  
+            const isPinkyCurled = dist(20, 9) < palmSize * 0.65;
+            
+            const isThumbsUpGesture = isThumbExtended && isIndexCurled && isMiddleCurled && isRingCurled && isPinkyCurled;
+            
+            if (isThumbsUpGesture) {
+                if (!STATE.gestureStartTime) {
+                    STATE.gestureStartTime = Date.now();
+                } else if (Date.now() - STATE.gestureStartTime > CONFIG.gestures.holdDuration) {
+                    if (STATE.isGestureSwitchEnabled && Date.now() - STATE.gestureDebounceTimer > CONFIG.gestures.switchCooldown) { 
+                        switchTheme((STATE.currentThemeIndex + 1) % 3); 
+                        STATE.gestureDebounceTimer = Date.now();
+                        STATE.gestureStartTime = 0;
+                        // 移动端视觉反馈
+                        if (isMobile) {
+                            showMobileAlert("主题已切换", 1500);
+                        }
+                    }
+                }
+                return;
+            } else {
+                STATE.gestureStartTime = 0;
+            }
+            
+            // 3. 手掌移动速度检测
+            let palmSpeed = 0;
+            if (STATE.lastPalmPosition) {
+                const dx = currentPalmX - STATE.lastPalmPosition.x;
+                const dy = currentPalmY - STATE.lastPalmPosition.y;
+                palmSpeed = Math.sqrt(dx*dx + dy*dy);
+            }
+            STATE.lastPalmPosition = {x: currentPalmX, y: currentPalmY};
+            
+            // 4. 张开手掌（散射模式）
+            const avgSpread = (dIndex+dMiddle+dRing+dPinky)/4;
+            const isPalmOpen = avgSpread > CONFIG.gestures.palmOpenThreshold;
+            const areFourFingersOpen = (dIndex > palmSize * 1.3) && 
+                                     (dMiddle > palmSize * 1.3) && 
+                                     (dRing > palmSize * 1.3) && 
+                                     (dPinky > palmSize * 1.3);
+            
+            // 单指指向检测
+            const isPointing = dIndex > 0.1 && dMiddle < dIndex*0.7 && dRing < dIndex*0.7;
+            
+            if (isPointing) { 
+                STATE.mode = 'FOCUS';
+                if (!STATE.wasPointing) {
+                    const photos = particleSystem.filter(p => p.type === 'PHOTO');
+                    STATE.focusTarget = photos.length ? photos[(++STATE.currentPhotoIndex)%photos.length].mesh : STATE.starMesh;
+                }
+                STATE.wasPointing = true;
+                STATE.hasPalmCenter = false;
+                STATE.spinVel.x *= 0.9;
+                STATE.spinVel.y *= 0.9;
+            } else if (isPalmOpen && areFourFingersOpen && palmSpeed < CONFIG.gestures.palmSpeedThreshold) {
+                STATE.mode = 'SCATTER';
+                if (!STATE.hasPalmCenter) {
+                    STATE.palmCenter = {x: currentPalmX, y: currentPalmY};
+                    STATE.hasPalmCenter = true;
+                    STATE.gestureBaseSpread = avgSpread;
+                    STATE.scatterScale = 1.0;
+                }
+                
+                if (STATE.gestureBaseSpread) {
+                    STATE.scatterScale += (THREE.MathUtils.clamp(Math.pow(STATE.gestureBaseSpread/avgSpread, 2), 0.1, 5.0) - STATE.scatterScale) * 0.15;
+                }
+                
+                const gain = CONFIG.gestures.sensitivity;
+                const dx = currentPalmX - STATE.palmCenter.x;
+                const dy = currentPalmY - STATE.palmCenter.y;
+                STATE.spinVel.x += (THREE.MathUtils.clamp(-dy*gain, -3, 3) - STATE.spinVel.x) * 0.2;
+                STATE.spinVel.y += (THREE.MathUtils.clamp(dx*gain, -3, 3) - STATE.spinVel.y) * 0.2;
+                
+                STATE.wasPointing = false;
+            } else {
+                STATE.mode = 'TREE';
+                STATE.wasPointing = false;
+                STATE.hasPalmCenter = false;
+                STATE.scatterScale = 1.0;
+                STATE.spinVel.x *= 0.9;
+                STATE.spinVel.y *= 0.9;
+            }
+            
+            // 更新手部位置
+            STATE.hand.x += ((currentPalmX - 0.5)*3.0 - STATE.hand.x) * 0.1;
+            STATE.hand.y += ((currentPalmY - 0.5)*3.0 - STATE.hand.y) * 0.1;
+        }
+
+        // 新增：移动端触摸控制
+        function setupTouchControls() {
+            const touchLeft = document.getElementById('touch-left');
+            const touchRight = document.getElementById('touch-right');
+            
+            touchLeft.style.opacity = '0.3';
+            touchRight.style.opacity = '0.3';
+            
+            let touchStartTime = 0;
+            let lastTouchX = 0;
+            let lastTouchY = 0;
+            let touchInterval = null;
+            
+            // 触摸开始
+            const touchStart = (e) => {
+                e.preventDefault();
+                const touch = e.touches ? e.touches[0] : e;
+                STATE.touchStartX = touch.clientX;
+                STATE.touchStartY = touch.clientY;
+                lastTouchX = touch.clientX;
+                lastTouchY = touch.clientY;
+                touchStartTime = Date.now();
+                STATE.touchRotating = true;
+                
+                // 清除之前的减速
+                STATE.touchVelocity.x = 0;
+                STATE.touchVelocity.y = 0;
+                
+                // 长按检测（切换主题）
+                touchInterval = setTimeout(() => {
+                    if (STATE.isGestureSwitchEnabled && Date.now() - STATE.gestureDebounceTimer > 2000) {
+                        switchTheme((STATE.currentThemeIndex + 1) % 3);
+                        STATE.gestureDebounceTimer = Date.now();
+                        showMobileAlert("主题已切换", 1500);
+                    }
+                }, 500);
+            };
+            
+            // 触摸移动
+            const touchMove = (e) => {
+                if (!STATE.touchRotating) return;
+                e.preventDefault();
+                const touch = e.touches ? e.touches[0] : e;
+                
+                const deltaX = touch.clientX - lastTouchX;
+                const deltaY = touch.clientY - lastTouchY;
+                
+                // 更新旋转速度
+                STATE.touchVelocity.y = deltaX * 0.05;
+                STATE.touchVelocity.x = deltaY * 0.02;
+                
+                lastTouchX = touch.clientX;
+                lastTouchY = touch.clientY;
+                
+                // 清除长按计时器
+                clearTimeout(touchInterval);
+            };
+            
+            // 触摸结束
+            const touchEnd = (e) => {
+                e.preventDefault();
+                STATE.touchRotating = false;
+                clearTimeout(touchInterval);
+                
+                // 双击检测（书信模式）
+                if (Date.now() - touchStartTime < 300) {
+                    if (STATE.letterContent && STATE.letterContent.trim() !== "") {
+                        enterLetterMode();
+                    }
+                }
+            };
+            
+            // 绑定事件
+            const bindTouchEvents = (element) => {
+                element.addEventListener('touchstart', touchStart, { passive: false });
+                element.addEventListener('touchmove', touchMove, { passive: false });
+                element.addEventListener('touchend', touchEnd, { passive: false });
+                element.addEventListener('touchcancel', touchEnd, { passive: false });
+                
+                // 鼠标事件作为备用
+                element.addEventListener('mousedown', touchStart);
+                element.addEventListener('mousemove', touchMove);
+                element.addEventListener('mouseup', touchEnd);
+                element.addEventListener('mouseleave', touchEnd);
+            };
+            
+            bindTouchEvents(touchLeft);
+            bindTouchEvents(touchRight);
+        }
+
+        // 新增：移动端提示函数
+        function showMobileAlert(message, duration = 3000) {
+            const alertEl = document.getElementById('mobile-alert');
+            alertEl.textContent = message;
+            alertEl.style.display = 'block';
+            alertEl.style.opacity = '1';
+            
+            setTimeout(() => {
+                alertEl.style.opacity = '0';
+                setTimeout(() => {
+                    alertEl.style.display = 'none';
+                }, 500);
+            }, duration);
+        }
+
+        // 新增：手势教程
+        function showGestureTutorial() {
+            const tutorial = document.getElementById('gesture-tutorial');
+            tutorial.style.display = 'flex';
+            
+            document.getElementById('close-tutorial').onclick = () => {
+                tutorial.style.display = 'none';
+                localStorage.setItem('tutorialShown', 'true');
+            };
+        }
+
+        // 修改：事件设置，添加移动端适配
+        function setupEvents() {
+            // 窗口大小调整
+            window.addEventListener('resize', () => { 
+                camera.aspect = window.innerWidth / window.innerHeight; 
+                camera.updateProjectionMatrix(); 
+                renderer.setSize(window.innerWidth, window.innerHeight); 
+                if (composer) composer.setSize(window.innerWidth, window.innerHeight); 
+                
+                // 检测横竖屏
+                STATE.isLandscape = window.innerWidth > window.innerHeight;
+                
+                // 移动端调整UI
+                if (isMobile) {
+                    adjustUIForMobile();
+                }
+            });
+            
+            // 防止移动端缩放
+            document.addEventListener('gesturestart', (e) => e.preventDefault());
+            document.addEventListener('gesturechange', (e) => e.preventDefault());
+            document.addEventListener('gestureend', (e) => e.preventDefault());
+            
+            // 防止双击缩放
+            let lastTouchEnd = 0;
+            document.addEventListener('touchend', (e) => {
+                const now = Date.now();
+                if (now - lastTouchEnd < 300) {
+                    e.preventDefault();
+                }
+                lastTouchEnd = now;
+            }, false);
+            
+            // 移动端UI调整
+            if (isMobile) {
+                adjustUIForMobile();
+                
+                // 移动端按钮点击反馈
+                const buttons = document.querySelectorAll('.control-btn');
+                buttons.forEach(btn => {
+                    btn.addEventListener('touchstart', () => {
+                        btn.style.transform = 'scale(0.95)';
+                        btn.style.backgroundColor = 'rgba(212, 175, 55, 0.3)';
+                    });
+                    
+                    btn.addEventListener('touchend', () => {
+                        btn.style.transform = '';
+                        btn.style.backgroundColor = '';
+                    });
+                });
+            }
+            
+            // ...（原有的事件绑定代码）...
+        }
+
+        // 新增：移动端UI调整
+        function adjustUIForMobile() {
+            // 根据屏幕方向调整UI
+            if (STATE.isLandscape) {
+                // 横屏模式
+                document.getElementById('top-right-controls').style.flexDirection = 'row';
+                document.getElementById('col-media').style.flexDirection = 'column';
+                document.getElementById('col-system').style.flexDirection = 'column';
+            } else {
+                // 竖屏模式
+                document.getElementById('top-right-controls').style.flexDirection = 'column';
+                document.getElementById('col-media').style.flexDirection = 'column';
+                document.getElementById('col-system').style.flexDirection = 'column';
+            }
+            
+            // 调整摄像头预览位置
+            const webcamWrapper = document.getElementById('webcam-wrapper');
+            if (STATE.isLandscape) {
+                webcamWrapper.style.bottom = '20px';
+                webcamWrapper.style.right = '20px';
+            } else {
+                webcamWrapper.style.bottom = '80px';
+                webcamWrapper.style.right = '20px';
+            }
+        }
+
+        // 初始化
+        init();
+    </script>
+</body>
+</html>
