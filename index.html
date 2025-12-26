@@ -63,6 +63,156 @@
         .modal-btn-group { display: flex; justify-content: flex-end; gap: 10px; }
         #letter-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 150; background: rgba(0,0,0,0.4); display: none; align-items: center; justify-content: center; pointer-events: auto; opacity: 0; transition: opacity 1.5s ease; }
         .letter-paper { height: 80%; aspect-ratio: 3/4; background: rgba(255, 252, 240, 0.15); backdrop-filter: blur(3px); border: 1px solid rgba(255, 255, 255, 0.3); padding: 6vh; box-sizing: border-box; position: relative; display: flex; flex-direction: column; transform: translateY(20px); transition: transform 1.5s ease-out; }
+        .letter-content { font-family: 'Ma Shan Zheng', cursive; font-size: clamp(16px, 2.5vh, 24px); line-height: 1.8; color: rgba(255, 255, 255, 0.9); text-shadow: 0 0 5px rgba The problem is that the camera isn't automatically accessed on Android, and gestures don't work.
+
+From the search:
+
+- getUserMedia requires user permission.
+
+- On mobile, it should prompt.
+
+- But perhaps on file:// it doesn't work, needs HTTPS.
+
+- Also, on some browsers, it requires user interaction to call getUserMedia.
+
+In the code, it's called in init(), which runs on load, without interaction.
+
+On desktop, it might work, but on mobile, perhaps not.
+
+To fix, call getUserMedia after a user click.
+
+I need to add a button to enable the camera.
+
+Add a button "启用手势" or "Enable Gestures", and on click, call initMediaPipe().
+
+Remove the automatic call.
+
+Also, perhaps hide the webcam-wrapper until enabled.
+
+In the code, it's opacity 0, then 1 when loaded.
+
+I can modify to have a button.
+
+In col-system, add <button id="btn-enable-gesture" class="control-btn">启用手势</button>
+
+Then, in setupEvents(), document.getElementById('btn-enable-gesture').onclick = (e) => { e.stopPropagation(); initMediaPipe().catch(console.warn); };
+
+And remove the initMediaPipe call from init().
+
+Yes.
+
+Also, in initMediaPipe, after stream, set opacity 1.
+
+To prevent multiple calls, perhaps disable the button after click.
+
+Or check if video.srcObject.
+
+But simple, add the button.
+
+The title is in Chinese, buttons are Chinese, so button text "启用手势"
+
+The user message is in Chinese.
+
+Yes.
+
+In the code, the webcam is front, user.
+
+For gestures, front is fine, as it's for self.
+
+Perhaps on Android, need to specify facingMode: 'user'
+
+It's already there.
+
+From search , facingMode: 'environment' for rear.
+
+But for hand gestures in front of screen, front camera.
+
+Yes.
+
+I think the main issue is automatic vs manual.
+
+Also, perhaps reduce particle count for mobile performance.
+
+But user said effects satisfactory, don't change.
+
+But for camera.
+
+In my previous code, I have renderer.setPixelRatio(isMobile ? 1 : Math.min(window.devicePixelRatio, 1.5));
+
+Yes.
+
+And video size smaller on mobile.
+
+Yes.
+
+I think adding the button will solve the auto issue.
+
+The user said "不能自动调用", cannot auto call, so make it manual.<|control12|>```html
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Luxury Tree - Custom Edition</title>
+   
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;800&family=Ma+Shan+Zheng&display=swap');
+        body { margin: 0; overflow: hidden; background-color: #020205; font-family: 'Cinzel', serif; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
+        #canvas-container { width: 100vw; height: 100vh; position: absolute; z-index: 1; }
+       
+        #ui-layer { position: absolute; width: 100%; height: 100%; z-index: 10; pointer-events: none; background: radial-gradient(circle at center, transparent 0%, rgba(0,0,0,0.3) 100%); }
+       
+        #main-title {
+            position: absolute;
+            top: 10%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100%;
+            text-align: center;
+            font-family: 'Cinzel', serif;
+            font-weight: 800;
+            font-size: clamp(36px, 7vw, 80px);
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            pointer-events: none;
+            z-index: 20;
+            opacity: 0;
+            min-height: 1.2em;
+           
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-image: linear-gradient(180deg, #fffdf0 0%, #eacda3 30%, #d6ae7b 60%, #8b6c42 100%);
+            filter: drop-shadow(0 0 15px rgba(212, 175, 55, 0.6));
+           
+            animation: titleFadeIn 2s ease-out forwards 1s;
+            transition: filter 1.5s ease, background-image 1.5s ease;
+        }
+        @keyframes titleFadeIn {
+            from { opacity: 0; transform: translate(-50%, -20px); }
+            to { opacity: 1; transform: translate(-50%, 0); }
+        }
+        #loader { position: absolute; width: 100%; height: 100%; background: #000; z-index: 100; display: flex; align-items: center; justify-content: center; transition: opacity 1.2s; pointer-events: none; }
+        .spinner { width: 40px; height: 40px; border: 2px solid rgba(212, 175, 55, 0.1); border-top: 2px solid #d4af37; border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        #top-right-controls { position: absolute; top: 20px; right: 20px; z-index: 30; display: flex; flex-direction: row; gap: 15px; pointer-events: auto; }
+        .control-col { display: flex; flex-direction: column; gap: 15px; }
+       
+        .control-btn { background: rgba(10, 10, 10, 0.6); border: 1px solid rgba(212, 175, 55, 0.4); color: #d4af37; width: 100px; padding: 5px 0; border-radius: 7px; font-family: 'Cinzel', serif; font-size: 14px; font-weight: 600; cursor: pointer; backdrop-filter: blur(5px); transition: all 0.3s ease; }
+        .control-btn:hover { background: rgba(212, 175, 55, 0.2); border-color: rgba(212, 175, 55, 0.8); color: #fff; transform: scale(1.05); }
+        .control-btn:active { transform: scale(0.95); }
+        .control-btn.disabled { color: #666; border-color: #444; }
+       
+        #file-input, #music-input, #import-input { display: none; }
+        #webcam-wrapper { position: absolute; bottom: 20px; right: 20px; opacity: 0; pointer-events: none; border: 1px solid rgba(212, 175, 55, 0.5); border-radius: 4px; background: #000; z-index: 50; display: flex; transition: opacity 0.5s; }
+        #webcam { display: none; }
+        #webcam-preview { width: 100%; height: 100%; transform: scaleX(-1); }
+        #letter-editor-modal { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 80%; max-width: 500px; background: rgba(10, 10, 10, 0.95); border: 1px solid #d4af37; border-radius: 10px; padding: 20px; z-index: 200; display: none; flex-direction: column; gap: 15px; pointer-events: auto; }
+        #letter-editor-modal h3 { color: #d4af37; margin: 0; text-align: center; }
+        #letter-text-input { width: 100%; height: 150px; background: rgba(255,255,255,0.05); border: 1px solid #444; color: #fff; padding: 10px; resize: none; outline: none; }
+        .modal-btn-group { display: flex; justify-content: flex-end; gap: 10px; }
+        #letter-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 150; background: rgba(0,0,0,0.4); display: none; align-items: center; justify-content: center; pointer-events: auto; opacity: 0; transition: opacity 1.5s ease; }
+        .letter-paper { height: 80%; aspect-ratio: 3/4; background: rgba(255, 252, 240, 0.15); backdrop-filter: blur(3px); border: 1px solid rgba(255, 255, 255, 0.3); padding: 6vh; box-sizing: border-box; position: relative; display: flex; flex-direction: column; transform: translateY(20px); transition: transform 1.5s ease-out; }
         .letter-content { font-family: 'Ma Shan Zheng', cursive; font-size: clamp(16px, 2.5vh, 24px); line-height: 1.8; color: rgba(255, 255, 255, 0.9); text-shadow: 0 0 5px rgba(255,215,0, 0.3); white-space: pre-wrap; overflow-y: auto; flex: 1; scroll-behavior: smooth; }
        
         .letter-content::-webkit-scrollbar { width: 6px; }
@@ -109,6 +259,7 @@
                 <button id="btn-export" class="control-btn">导出网页</button>
                 <button id="btn-fullscreen" class="control-btn">全屏显示</button>
                 <button id="btn-switch-theme" class="control-btn">颜色切换</button>
+                <button id="btn-enable-gesture" class="control-btn">启用手势</button>
             </div>
         </div>
         <input type="file" id="file-input" multiple accept="image/*">
@@ -205,7 +356,6 @@
             setupLetterSystem();
            
             switchTheme(0);
-            initMediaPipe().catch(console.warn);
             const loader = document.getElementById('loader');
             loader.style.opacity = 0;
             setTimeout(() => loader.remove(), 1200);
@@ -939,6 +1089,10 @@
                 } else {
                     btnSwitch.classList.add('disabled');
                 }
+            };
+            document.getElementById('btn-enable-gesture').onclick = (e) => {
+                e.stopPropagation();
+                initMediaPipe().catch(console.warn);
             };
         }
         init();
